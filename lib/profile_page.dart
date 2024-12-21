@@ -15,92 +15,110 @@ class _ProfilePageState extends State<ProfilePage> {
   String _subscription = "";
   List<String> _labels = [];
 
-  Map<String, dynamic> _kycData = {}; // Data loaded from the file.
+  Map<String, dynamic> _kycData = {};
 
   @override
   void initState() {
     super.initState();
-    _loadData(); // Load data on initialization.
+    _loadData();
   }
 
-  // Get the local file path
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
   Future<File> get _localFile async {
     final directory = await getApplicationDocumentsDirectory();
     return File('${directory.path}/data.json');
   }
 
-  // Load existing data from the file
   Future<void> _loadData() async {
     try {
       final file = await _localFile;
       if (await file.exists()) {
         final contents = await file.readAsString();
+        final data = jsonDecode(contents);
+        
         setState(() {
-          _kycData = jsonDecode(contents);
-          _labels = List<String>.from(_kycData["profile"]?["labels"] ?? []);
+          _kycData = data;
+          
+          // Load profile data if it exists
+          if (_kycData.containsKey("profile")) {
+            final profile = _kycData["profile"];
+            _nameController.text = profile["name"] ?? "";
+            _emailController.text = profile["email"] ?? "";
+            _phoneController.text = profile["phone"] ?? "";
+            _subscription = profile["subscription"] ?? "";
+            _labels = List<String>.from(profile["labels"] ?? []);
+          } else {
+            // Initialize with empty profile if it doesn't exist
+            _kycData["profile"] = {
+              "name": "",
+              "email": "",
+              "phone": "",
+              "subscription": "",
+              "labels": []
+            };
+          }
         });
       } else {
-        // Initialize with a basic structure if file doesn't exist.
+        // Initialize with a basic structure if file doesn't exist
         _kycData = {
           "needs": [],
           "income": [],
-          "profile": {},
+          "profile": {
+            "name": "",
+            "email": "",
+            "phone": "",
+            "subscription": "",
+            "labels": []
+          },
           "expenditure": [],
           "payment": []
         };
       }
     } catch (e) {
       print("Error loading data: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading profile data: $e')),
+      );
     }
   }
 
-  // Save data to the file
   Future<void> _saveKYC() async {
-    // Update profile data in the map.
-    _kycData["profile"] = {
-      "name": _nameController.text,
-      "subscription": _subscription,
-      "email": _emailController.text,
-      "phone": _phoneController.text,
-      "labels": _labels,
-    };
-
-    final jsonString = jsonEncode(_kycData);
-
     try {
       final file = await _localFile;
-      await file.writeAsString(jsonString);
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Data Saved'),
-          content: Text('Data saved to: ${file.path}'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('OK'),
-            )
-          ],
-        ),
+      
+      // Read existing data first
+      String existingData = await file.readAsString();
+      Map<String, dynamic> jsonData = jsonDecode(existingData);
+      
+      // Update only the profile section
+      jsonData["profile"] = {
+        "name": _nameController.text,
+        "subscription": _subscription,
+        "email": _emailController.text,
+        "phone": _phoneController.text,
+        "labels": _labels,
+      };
+
+      // Write back the entire data
+      await file.writeAsString(jsonEncode(jsonData));
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Profile saved successfully')),
       );
     } catch (e) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Error'),
-          content: Text('Failed to save KYC: $e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('OK'),
-            )
-          ],
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving profile: $e')),
       );
     }
   }
 
-  // Add label functionality
   Future<void> _addLabel() async {
     String newLabel = "";
     await showDialog(
@@ -136,7 +154,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Remove label functionality
   Future<void> _removeLabel(int index) async {
     setState(() {
       _labels.removeAt(index);
@@ -150,7 +167,7 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(
         title: Text('Profile Page'),
       ),
-      body: SingleChildScrollView( // Wrap the content with SingleChildScrollView
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -194,9 +211,8 @@ class _ProfilePageState extends State<ProfilePage> {
               'Priority Labels:',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
-            // Wrap the ListView with a constrained height to avoid overflow
             ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: 200), // Limit the height
+              constraints: BoxConstraints(maxHeight: 200),
               child: ReorderableListView(
                 onReorder: (oldIndex, newIndex) {
                   setState(() {

@@ -9,7 +9,8 @@ class IncomePage extends StatefulWidget {
 }
 
 class _IncomePageState extends State<IncomePage> {
-  List<Map<String, String>> savedIncome = [];
+  List<Map<String, dynamic>> savedIncome = [];
+  bool isLoading = true;
 
   @override
   void initState() {
@@ -20,45 +21,77 @@ class _IncomePageState extends State<IncomePage> {
   // Get the local file path
   Future<File> get _localFile async {
     final directory = await getApplicationDocumentsDirectory();
-    return File('${directory.path}/data.json');
+    final file = File('${directory.path}/data.json');
+
+    // Create the file if it doesn't exist
+    if (!await file.exists()) {
+      await file.create();
+      await file.writeAsString(jsonEncode({'income': []}));
+    }
+    return file;
   }
 
   // Save income to the JSON file
-  Future<void> _saveIncome() async {
+  Future<void> _saveIncome(Map<String, dynamic> newIncome) async {
     final file = await _localFile;
     try {
-      final jsonData = await file.readAsString();
-      final data = jsonDecode(jsonData);
+      final jsonString = await file.readAsString();
+      final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
 
-      data['income'] = savedIncome;
-      await file.writeAsString(jsonEncode(data));
+      final List<dynamic> existingIncome = jsonData['income'] ?? [];
+      existingIncome.add(newIncome);
+      jsonData['income'] = existingIncome;
+
+      await file.writeAsString(jsonEncode(jsonData));
+
+      setState(() {
+        savedIncome = List<Map<String, dynamic>>.from(existingIncome);
+      });
     } catch (e) {
-      // Handle file read/write error
+      print('Error saving income: $e');
     }
   }
 
   // Load income from the JSON file
   Future<void> _loadIncome() async {
     try {
+      setState(() => isLoading = true);
       final file = await _localFile;
-      if (await file.exists()) {
-        final jsonData = await file.readAsString();
-        final data = jsonDecode(jsonData);
-        setState(() {
-          savedIncome = List<Map<String, String>>.from(data['income'] ?? []);
-        });
-      }
+      final jsonString = await file.readAsString();
+      final jsonData = jsonDecode(jsonString);
+
+      setState(() {
+        savedIncome = (jsonData['income'] as List?)
+                ?.map((item) => Map<String, dynamic>.from(item))
+                .toList() ??
+            [];
+      });
     } catch (e) {
-      // Handle file read error
+      print('Error loading income: $e');
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
-  // Add new income entry
-  void addIncome(Map<String, String> incomeData) {
-    setState(() {
-      savedIncome.add(incomeData);
-    });
-    _saveIncome();
+  // Remove income from the JSON file and the list
+  Future<void> _removeIncome(int index) async {
+    try {
+      final file = await _localFile;
+      final jsonString = await file.readAsString();
+      final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+
+      final List<dynamic> existingIncome = jsonData['income'] ?? [];
+      existingIncome.removeAt(index);
+      jsonData['income'] = existingIncome;
+
+      await file.writeAsString(jsonEncode(jsonData));
+
+      setState(() {
+        savedIncome = List<Map<String, dynamic>>.from(existingIncome);
+      });
+    } catch (e) {
+      print('Error removing income: $e');
+    }
   }
 
   @override
@@ -67,50 +100,58 @@ class _IncomePageState extends State<IncomePage> {
       appBar: AppBar(
         title: Text('Income Page'),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: savedIncome.isEmpty
-                ? Center(
-                    child: Text(
-                      'No income added yet. Click "Add Income" to start!',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: savedIncome.length,
-                    itemBuilder: (context, index) {
-                      final income = savedIncome[index];
-                      return ListTile(
-                        leading: Icon(Icons.monetization_on, color: Colors.green),
-                        title: Text(
-                          income['amount'] ?? 'No Amount',
-                          style: TextStyle(fontSize: 18),
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Expanded(
+                  child: savedIncome.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No income added yet. Click "Add Income" to start!',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: savedIncome.length,
+                          itemBuilder: (context, index) {
+                            final income = savedIncome[index];
+                            return ListTile(
+                              leading: Icon(Icons.monetization_on,
+                                  color: Colors.green),
+                              title: Text(
+                                income['amount']?.toString() ?? 'No Amount',
+                                style: TextStyle(fontSize: 18),
+                              ),
+                              subtitle: Text(
+                                'Type: ${income['type']} | Reliability: ${income['reliability']} | Frequency: ${income['frequency']}',
+                              ),
+                              trailing: IconButton(
+                                icon: Icon(Icons.close, color: Colors.red),
+                                onPressed: () => _removeIncome(index),
+                              ),
+                            );
+                          },
                         ),
-                        subtitle: Text(
-                          'Type: ${income['type']} | Reliability: ${income['reliability']} | Frequency: ${income['frequency']}',
-                        ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      final newIncomeData = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => AddIncomePage()),
                       );
+                      if (newIncomeData != null) {
+                        await _saveIncome(newIncomeData);
+                      }
                     },
+                    child: Text('Add Income'),
                   ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: ElevatedButton(
-              onPressed: () async {
-                final newIncomeData = await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => AddIncomePage()),
-                );
-                if (newIncomeData != null) {
-                  addIncome(newIncomeData);
-                }
-              },
-              child: Text('Add Income'),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -137,7 +178,6 @@ class _AddIncomePageState extends State<AddIncomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Input field for amount
               TextFormField(
                 decoration: InputDecoration(
                   labelText: 'Amount',
@@ -149,8 +189,6 @@ class _AddIncomePageState extends State<AddIncomePage> {
                     value!.isEmpty ? 'Please enter the amount' : null,
               ),
               SizedBox(height: 16),
-
-              // Dropdown for type
               DropdownButtonFormField<String>(
                 value: type,
                 items: [
@@ -177,8 +215,6 @@ class _AddIncomePageState extends State<AddIncomePage> {
                     value == null ? 'Please select a type' : null,
               ),
               SizedBox(height: 16),
-
-              // Dropdown for reliability
               DropdownButtonFormField<String>(
                 value: reliability,
                 items: [
@@ -204,17 +240,9 @@ class _AddIncomePageState extends State<AddIncomePage> {
                     value == null ? 'Please select reliability' : null,
               ),
               SizedBox(height: 16),
-
-              // Dropdown for frequency
               DropdownButtonFormField<String>(
                 value: frequency,
-                items: [
-                  'Daily',
-                  'Weekly',
-                  'Monthly',
-                  '6 Months',
-                  'Yearly'
-                ]
+                items: ['Daily', 'Weekly', 'Monthly', '6 Months', 'Yearly']
                     .map((f) => DropdownMenuItem(
                           value: f,
                           child: Text(f),
@@ -233,7 +261,6 @@ class _AddIncomePageState extends State<AddIncomePage> {
                     value == null ? 'Please select a frequency' : null,
               ),
               SizedBox(height: 16),
-
               Center(
                 child: ElevatedButton(
                   onPressed: () {

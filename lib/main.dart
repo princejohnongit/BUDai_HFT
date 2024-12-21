@@ -1,4 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'needs_page.dart';
 import 'income_page.dart';
 import 'profile_page.dart';
@@ -6,8 +9,35 @@ import 'payment_page.dart';
 import 'csp_page.dart';
 import 'expenditure_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeJsonFile(); // Ensure the file is initialized before the app runs
   runApp(MyApp());
+}
+
+Future<void> initializeJsonFile() async {
+  final directory = await getApplicationDocumentsDirectory();
+  final filePath = '${directory.path}/data.json';
+  final file = File(filePath);
+
+  if (!(await file.exists())) {
+    const defaultData = {
+      "needs": [],
+      "income": [],
+      "profile": {
+        "name": "",
+        "subscription": "",
+        "email": "",
+        "phone": "",
+        "labels": []
+      },
+      "expenditure": [],
+      "payment": [],
+      "transactions": []
+    };
+
+    await file.writeAsString(jsonEncode(defaultData));
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -92,4 +122,3 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-

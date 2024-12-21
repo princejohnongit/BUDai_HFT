@@ -77,8 +77,7 @@ class _NeedsPageState extends State<NeedsPage> {
       body: Column(
         children: [
           Expanded(
-            
-            child: jsonData['needs'].isEmpty
+            child: (jsonData['needs'] == null || jsonData['needs'].isEmpty)
                 ? Center(
                     child: Text(
                       'No needs added yet. Click "Add Need" to start!',
@@ -96,7 +95,7 @@ class _NeedsPageState extends State<NeedsPage> {
                           style: TextStyle(fontSize: 18),
                         ),
                         subtitle: Text(
-                          'Type: ${need['needType']} | Label: ${need['priority']}',
+                          'Type: ${need['needType']} | Label: ${need['priority']} | Amount: ${need['amount']}',
                         ),
                         trailing: IconButton(
                           icon: Icon(Icons.delete, color: Colors.red),
@@ -133,6 +132,14 @@ class AddNeedPage extends StatefulWidget {
 }
 
 class _AddNeedPageState extends State<AddNeedPage> {
+  Map<String, dynamic> jsonData = {
+    'needs': [],
+    'income': [],
+    'profile': {'labels': []},
+    'expenditure': [],
+    'payment': []
+  };
+
   String needType = 'Long Term';
   final _formKey = GlobalKey<FormState>();
   String? selectedDuration, name, amount, priority;
@@ -153,12 +160,16 @@ class _AddNeedPageState extends State<AddNeedPage> {
   Future<void> loadExpenditureData() async {
     try {
       final file = await _localFile;
-      final fileContent = await file.readAsString();
-      final data = jsonDecode(fileContent);
-
-      setState(() {
-        labels = List<String>.from(data['profile']['labels']);
-      });
+      if (await file.exists()) {
+        final fileContent = await file.readAsString();
+        jsonData = jsonDecode(fileContent);
+        setState(() {
+          if (jsonData.containsKey('profile') &&
+              jsonData['profile'].containsKey('labels')) {
+            labels = List<String>.from(jsonData['profile']['labels']);
+          }
+        });
+      }
     } catch (e) {
       print("Error reading file: $e");
     }
@@ -167,16 +178,29 @@ class _AddNeedPageState extends State<AddNeedPage> {
   Future<void> saveDataToJson() async {
     try {
       final file = await _localFile;
-      final fileContent = await file.readAsString();
-      final data = jsonDecode(fileContent);
 
-      if (!data['profile']['labels'].contains(newLabel)) {
-        data['profile']['labels'].add(newLabel);
+      // Add new label if it doesn't exist and has a value
+      if (newLabel.isNotEmpty &&
+          !jsonData['profile']['labels'].contains(newLabel)) {
+        List<dynamic> currentLabels = List.from(jsonData['profile']['labels']);
+        currentLabels.add(newLabel);
+
+        // Update labels in jsonData
+        jsonData['profile']['labels'] = currentLabels;
+
+        // Write back the entire data
+        await file.writeAsString(jsonEncode(jsonData));
+
+        // Update local state
+        setState(() {
+          labels = List<String>.from(currentLabels);
+        });
       }
-
-      await file.writeAsString(jsonEncode(data));
     } catch (e) {
       print("Error writing to file: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving label: $e')),
+      );
     }
   }
 
@@ -258,12 +282,7 @@ class _AddNeedPageState extends State<AddNeedPage> {
               SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: priority,
-                items: [
-                      DropdownMenuItem<String>(
-                        value: 'Add New Label',
-                        child: Text('Add New Label'),
-                      ),
-                    ] +
+                items:
                     labels
                         .map((label) => DropdownMenuItem<String>(
                               value: label,
@@ -294,7 +313,9 @@ class _AddNeedPageState extends State<AddNeedPage> {
                         ],
                       ),
                     );
+
                     if (result != null && result.isNotEmpty) {
+                      print(result);
                       setState(() {
                         labels.add(result);
                         priority = result;

@@ -10,7 +10,7 @@ class Need {
   final String duration;
   final double amount;
   final String name;
-  final String priority;
+  final String label;
   double? allocated;
   double? score;
   bool? fulfilled;
@@ -20,7 +20,7 @@ class Need {
     required this.duration,
     required this.amount,
     required this.name,
-    required this.priority,
+    required this.label,
     this.allocated,
     this.score,
     this.fulfilled,
@@ -32,7 +32,7 @@ class Need {
       duration: json['duration'] as String,
       amount: double.parse(json['amount']),
       name: json['name'] as String,
-      priority: json['priority'] as String,
+      label: json['priority'] as String,
     );
   }
 }
@@ -93,55 +93,28 @@ class _FinancialCSPSolverState extends State<FinancialCSPSolver> {
   }
 
   double calculateNeedScore(Need need, List<String> labels) {
-    double score = 0;
-
-    // Priority scoring
-    // switch (need.priority.toLowerCase()) {
-    //   case "high":
-    //     score += 3;
-    //     break;
-    //   case "medium":
-    //     score += 2;
-    //     break;
-    //   case "low":
-    //     score += 1;
-    //     break;
-    // }
-
-    // Label position scoring
-    final labelIndex = labels.indexWhere(
-        (label) => need.name.toLowerCase().contains(label.toLowerCase()));
-
-    if (labelIndex != -1) {
-      score += (labels.length - labelIndex);
-    }
-
-    return score;
+    final labelIndex =
+        labels.indexWhere((label) => need.label.toLowerCase() == label.toLowerCase());
+    double h = labelIndex != -1 ? (labels.length - labelIndex).toDouble() : 0.0;
+    return h / need.amount;
   }
 
   void solveCSP(Map<String, dynamic> data) {
     try {
-      // Parse income data
       final incomes =
           (data['income'] as List).map((inc) => Income.fromJson(inc)).toList();
-
-      // Calculate monthly income
       final monthlyIncome = calculateTotalIncome(incomes);
       var availableFunds = monthlyIncome;
 
-      // Parse and score needs
       final needs =
           (data['needs'] as List).map((need) => Need.fromJson(need)).toList();
-
       final labels = (data['profile']['labels'] as List).cast<String>();
 
-      // Score and sort needs
       for (var need in needs) {
         need.score = calculateNeedScore(need, labels);
       }
       needs.sort((a, b) => (b.score ?? 0).compareTo(a.score ?? 0));
 
-      // Allocate funds
       for (var need in needs) {
         final allocation = need.amount.clamp(0, availableFunds);
         need.allocated = allocation.toDouble();
@@ -163,94 +136,85 @@ class _FinancialCSPSolverState extends State<FinancialCSPSolver> {
   void initState() {
     super.initState();
     _loadJsonData().then((data) {
-      solveCSP(data); // Solve CSP when data is loaded
+      solveCSP(data);
     });
+  }
+
+  Widget buildNode(Need need, bool isLast) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: need.fulfilled == true ? Colors.green[100] : Colors.red[100],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: need.fulfilled == true ? Colors.green : Colors.red,
+              width: 2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                need.name,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87),
+              ),
+              Text('Label: ${need.label}'),
+              Text('Score: ${need.score?.toStringAsFixed(1)}'),
+              Text(
+                'Allocated: \$${need.allocated?.toStringAsFixed(2)} / \$${need.amount}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+        if (!isLast)
+          const Icon(
+            Icons.arrow_downward,
+            size: 24,
+            color: Colors.blue,
+          ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.all(16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ElevatedButton(
-              onPressed: () async {
-                final data = await _loadJsonData();
-                solveCSP(data);
-              },
-              child: const Text('Analyze Financial Needs'),
-            ),
-            const SizedBox(height: 16),
-            if (results != null) ...[
-              const Text(
-                'Optimized Needs Allocation',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Financial Needs Allocation'),
+        backgroundColor: Colors.blueAccent,
+      ),
+      body: Card(
+        margin: const EdgeInsets.all(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+          
               const SizedBox(height: 16),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: results!.length,
-                  separatorBuilder: (context, index) => const Divider(),
-                  itemBuilder: (context, index) {
-                    final need = results![index];
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.grey[100],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                need.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              Text(
-                                'Score: ${need.score?.toStringAsFixed(1)}',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Priority: ${need.priority}'),
-                              Text(
-                                'Allocated: \$${need.allocated?.toStringAsFixed(2)} / \$${need.amount}',
-                              ),
-                            ],
-                          ),
-                          if (index < results!.length - 1)
-                            const Center(
-                              child: Icon(
-                                Icons.arrow_downward,
-                                color: Colors.grey,
-                              ),
-                            ),
-                        ],
-                      ),
-                    );
-                  },
+              if (results != null) ...[
+                const Text(
+                  'Optimized Needs Allocation',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-              ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: results!.length,
+                    itemBuilder: (context, index) {
+                      final need = results![index];
+                      return buildNode(need, index == results!.length - 1);
+                    },
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
