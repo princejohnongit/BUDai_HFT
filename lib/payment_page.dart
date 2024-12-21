@@ -1,5 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:path_provider/path_provider.dart';
 
 class PaymentPage extends StatefulWidget {
   @override
@@ -7,10 +10,44 @@ class PaymentPage extends StatefulWidget {
 }
 
 class _PaymentPageState extends State<PaymentPage> {
-  double _balance = 5000.0; // Initial balance
-  List<Transaction> _transactions = []; // List to hold transactions
+  double _balance = 0.0; // Initial balance (loaded dynamically)
+  List<Transaction> _transactions = []; // Transactions (loaded dynamically)
 
-  // Function to handle payments
+  // Get the local file path
+  Future<File> get _localFile async {
+    final directory = await getApplicationDocumentsDirectory();
+    return File('${directory.path}/data.json');
+  }
+
+  // Read data from data.json
+  Future<void> _readData() async {
+    final file = await _localFile;
+    if (await file.exists()) {
+      final jsonData = await file.readAsString();
+      final data = jsonDecode(jsonData);
+      setState(() {
+        _balance = data['balance'] ?? 0.0;
+        _transactions = (data['transactions'] as List)
+            .map((tx) => Transaction.fromJson(tx))
+            .toList();
+      });
+    } else {
+      // Create the file with default structure if it doesn't exist
+      await file.writeAsString(jsonEncode({'balance': 0.0, 'transactions': []}));
+    }
+  }
+
+  // Write data to data.json
+  Future<void> _writeData() async {
+    final file = await _localFile;
+    final data = {
+      'balance': _balance,
+      'transactions': _transactions.map((tx) => tx.toJson()).toList(),
+    };
+    await file.writeAsString(jsonEncode(data));
+  }
+
+  // Handle payments
   void _makePayment(double amount, String method) {
     setState(() {
       if (_balance >= amount) {
@@ -18,13 +55,24 @@ class _PaymentPageState extends State<PaymentPage> {
         _transactions.add(
           Transaction(amount: amount, type: "Sent via $method", date: DateTime.now()),
         );
+        _writeData(); // Save to file
       } else {
         _showErrorDialog("Insufficient balance!");
       }
     });
   }
 
-  // Function to show error dialogs
+  // Request payments
+  void _requestPayment(String contact, double amount) {
+    setState(() {
+      _transactions.add(
+        Transaction(amount: amount, type: "Requested from $contact", date: DateTime.now()),
+      );
+      _writeData(); // Save to file
+    });
+  }
+
+  // Show error dialogs
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -41,13 +89,10 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  // Function to handle payment request
-  void _requestPayment(String contact, double amount) {
-    setState(() {
-      _transactions.add(
-        Transaction(amount: amount, type: "Requested from $contact", date: DateTime.now()),
-      );
-    });
+  @override
+  void initState() {
+    super.initState();
+    _readData(); // Load data when the app starts
   }
 
   @override
@@ -69,39 +114,20 @@ class _PaymentPageState extends State<PaymentPage> {
             SizedBox(height: 20),
 
             // Payment options
-            Text(
-              "Make a Payment:",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
             ElevatedButton(
-              onPressed: () {
-                _showPaymentDialog();
-              },
+              onPressed: _showPaymentDialog,
               child: Text("Send Money"),
             ),
-            SizedBox(height: 20),
+            SizedBox(height: 10),
 
             // Request Payment
-            Text(
-              "Request Payment:",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
             ElevatedButton(
-              onPressed: () {
-                _showRequestDialog();
-              },
+              onPressed: _showRequestDialog,
               child: Text("Request Money"),
             ),
             SizedBox(height: 20),
 
             // Transaction History
-            Text(
-              "Transaction History:",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
             Expanded(
               child: ListView.builder(
                 itemCount: _transactions.length,
@@ -112,46 +138,6 @@ class _PaymentPageState extends State<PaymentPage> {
                     subtitle: Text("${transaction.date.toLocal()}"),
                   );
                 },
-              ),
-            ),
-
-            // Transaction Graph
-            SizedBox(height: 20),
-            Text(
-              "Transaction Graph:",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
-            Container(
-              height: 200,
-              child: LineChart(
-                LineChartData(
-                  gridData: FlGridData(show: true),
-                  titlesData: FlTitlesData(show: true),
-                  borderData: FlBorderData(show: true),
-                  minX: 0,
-                  maxX: _transactions.length.toDouble(),
-                  minY: 0,
-                  maxY: _balance + 1000,
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: _transactions
-                          .asMap()
-                          .map((index, transaction) {
-                            return MapEntry(
-                              index,
-                              FlSpot(index.toDouble(), _balance - transaction.amount),
-                            );
-                          })
-                          .values
-                          .toList(),
-                      isCurved: true,
-                      colors: [Colors.blue],
-                      dotData: FlDotData(show: false),
-                      belowBarData: BarAreaData(show: false),
-                    ),
-                  ],
-                ),
               ),
             ),
           ],
@@ -252,15 +238,27 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 }
 
-// Transaction model to hold transaction data
+// Transaction model
 class Transaction {
   final double amount;
   final String type;
   final DateTime date;
 
-  Transaction({
-    required this.amount,
-    required this.type,
-    required this.date,
-  });
+  Transaction({required this.amount, required this.type, required this.date});
+
+  factory Transaction.fromJson(Map<String, dynamic> json) {
+    return Transaction(
+      amount: json['amount'],
+      type: json['type'],
+      date: DateTime.parse(json['date']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'amount': amount,
+      'type': type,
+      'date': date.toIso8601String(),
+    };
+  }
 }

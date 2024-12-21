@@ -4,6 +4,7 @@ import 'income_page.dart';
 import 'profile_page.dart';
 import 'payment_page.dart';
 import 'csp_page.dart';
+import 'expenditure_page.dart';
 
 void main() {
   runApp(MyApp());
@@ -14,7 +15,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Income & Expenditure App',
+      title: 'Smart Budget',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
@@ -37,7 +38,7 @@ class _HomePageState extends State<HomePage> {
     ProfilePage(),
     ExpenditurePage(),
     PaymentPage(),
-    CSPPage()
+    FinancialCSPSolver()
   ];
 
   void _onItemTapped(int index) {
@@ -50,7 +51,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Income & Expenditure App'),
+        title: Text('Smart Budget'),
       ),
       body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -86,21 +87,9 @@ class _HomePageState extends State<HomePage> {
             icon: Icon(Icons.payment, size: 30),
             label: 'Best Plan',
           )
-
         ],
       ),
     );
   }
 }
 
-class ExpenditurePage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'Expenditure Page',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}

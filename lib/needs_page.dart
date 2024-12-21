@@ -12,7 +12,7 @@ class _NeedsPageState extends State<NeedsPage> {
   Map<String, dynamic> jsonData = {
     'needs': [],
     'income': [],
-    'profile': {},
+    'profile': {'labels': []},
     'expenditure': [],
     'payment': []
   };
@@ -37,11 +37,9 @@ class _NeedsPageState extends State<NeedsPage> {
           jsonData = jsonDecode(fileContent);
         });
       } else {
-        // Create a new file with the initial structure
         await _saveData();
       }
     } catch (e) {
-      // Handle file read errors
       print("Error loading JSON data: $e");
     }
   }
@@ -49,6 +47,18 @@ class _NeedsPageState extends State<NeedsPage> {
   Future<void> _saveData() async {
     final file = await _localFile;
     await file.writeAsString(jsonEncode(jsonData));
+  }
+
+  void removeNeed(int index) {
+    setState(() {
+      final removedNeed = jsonData['needs'].removeAt(index);
+      jsonData['expenditure'].add({
+        'name': removedNeed['name'],
+        'amount': removedNeed['amount'],
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    });
+    _saveData();
   }
 
   void addNeed(Map<String, dynamic> need) {
@@ -67,6 +77,7 @@ class _NeedsPageState extends State<NeedsPage> {
       body: Column(
         children: [
           Expanded(
+            
             child: jsonData['needs'].isEmpty
                 ? Center(
                     child: Text(
@@ -81,11 +92,15 @@ class _NeedsPageState extends State<NeedsPage> {
                       return ListTile(
                         leading: Icon(Icons.check_circle, color: Colors.green),
                         title: Text(
-                          need['name']!,
+                          need['name'],
                           style: TextStyle(fontSize: 18),
                         ),
                         subtitle: Text(
-                          'Type: ${need['needType']} | Priority: ${need['priority']}',
+                          'Type: ${need['needType']} | Label: ${need['priority']}',
+                        ),
+                        trailing: IconButton(
+                          icon: Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => removeNeed(index),
                         ),
                       );
                     },
@@ -121,6 +136,49 @@ class _AddNeedPageState extends State<AddNeedPage> {
   String needType = 'Long Term';
   final _formKey = GlobalKey<FormState>();
   String? selectedDuration, name, amount, priority;
+  List<String> labels = [];
+  String newLabel = '';
+
+  @override
+  void initState() {
+    super.initState();
+    loadExpenditureData();
+  }
+
+  Future<File> get _localFile async {
+    final directory = await getApplicationDocumentsDirectory();
+    return File('${directory.path}/data.json');
+  }
+
+  Future<void> loadExpenditureData() async {
+    try {
+      final file = await _localFile;
+      final fileContent = await file.readAsString();
+      final data = jsonDecode(fileContent);
+
+      setState(() {
+        labels = List<String>.from(data['profile']['labels']);
+      });
+    } catch (e) {
+      print("Error reading file: $e");
+    }
+  }
+
+  Future<void> saveDataToJson() async {
+    try {
+      final file = await _localFile;
+      final fileContent = await file.readAsString();
+      final data = jsonDecode(fileContent);
+
+      if (!data['profile']['labels'].contains(newLabel)) {
+        data['profile']['labels'].add(newLabel);
+      }
+
+      await file.writeAsString(jsonEncode(data));
+    } catch (e) {
+      print("Error writing to file: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -169,23 +227,13 @@ class _AddNeedPageState extends State<AddNeedPage> {
                     });
                   },
                   decoration: InputDecoration(
-                    labelText: '',
+                    labelText: 'Duration',
                     border: OutlineInputBorder(),
                   ),
                   validator: (value) =>
                       value == null ? 'Please select a duration' : null,
                 ),
                 SizedBox(height: 16),
-                TextFormField(
-                  decoration: InputDecoration(
-                    labelText: 'Total Amount',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  onSaved: (value) => amount = value,
-                  validator: (value) =>
-                      value!.isEmpty ? 'Please enter amount' : null,
-                ),
               ],
               TextFormField(
                 decoration: InputDecoration(
@@ -199,12 +247,72 @@ class _AddNeedPageState extends State<AddNeedPage> {
               SizedBox(height: 16),
               TextFormField(
                 decoration: InputDecoration(
-                  labelText: 'Priority (High/Medium/Low)',
+                  labelText: 'Amount',
                   border: OutlineInputBorder(),
                 ),
-                onSaved: (value) => priority = value,
+                keyboardType: TextInputType.number,
+                onSaved: (value) => amount = value,
                 validator: (value) =>
-                    value!.isEmpty ? 'Please enter priority' : null,
+                    value!.isEmpty ? 'Please enter an amount' : null,
+              ),
+              SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: priority,
+                items: [
+                      DropdownMenuItem<String>(
+                        value: 'Add New Label',
+                        child: Text('Add New Label'),
+                      ),
+                    ] +
+                    labels
+                        .map((label) => DropdownMenuItem<String>(
+                              value: label,
+                              child: Text(label),
+                            ))
+                        .toList(),
+                onChanged: (value) async {
+                  if (value == 'Add New Label') {
+                    final result = await showDialog<String>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text('Add New Label'),
+                        content: TextField(
+                          onChanged: (value) {
+                            newLabel = value;
+                          },
+                          decoration: InputDecoration(hintText: "Enter label"),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, null),
+                            child: Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, newLabel),
+                            child: Text('Add'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (result != null && result.isNotEmpty) {
+                      setState(() {
+                        labels.add(result);
+                        priority = result;
+                      });
+                      await saveDataToJson();
+                    }
+                  } else {
+                    setState(() {
+                      priority = value;
+                    });
+                  }
+                },
+                decoration: InputDecoration(
+                  labelText: 'Label',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) =>
+                    value == null ? 'Please select or add a label' : null,
               ),
               SizedBox(height: 16),
               Center(
@@ -214,8 +322,10 @@ class _AddNeedPageState extends State<AddNeedPage> {
                       _formKey.currentState!.save();
                       final newNeed = {
                         'needType': needType,
-                        'duration': selectedDuration ?? '',
-                        'amount': amount ?? '',
+                        'duration': needType == 'Long Term'
+                            ? selectedDuration ?? ''
+                            : '',
+                        'amount': amount!,
                         'name': name!,
                         'priority': priority!,
                       };

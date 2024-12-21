@@ -107,7 +107,7 @@ class _ProfilePageState extends State<ProfilePage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Add Priority Label'),
+          title: Text('Add Label'),
           content: TextField(
             onChanged: (value) {
               newLabel = value;
@@ -150,7 +150,7 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(
         title: Text('Profile Page'),
       ),
-      body: Padding(
+      body: SingleChildScrollView( // Wrap the content with SingleChildScrollView
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,14 +187,16 @@ class _ProfilePageState extends State<ProfilePage> {
             SizedBox(height: 20),
             ElevatedButton(
               onPressed: _addLabel,
-              child: Text('Add Priority Label'),
+              child: Text('Add Label'),
             ),
             SizedBox(height: 20),
             Text(
               'Priority Labels:',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
-            Expanded(
+            // Wrap the ListView with a constrained height to avoid overflow
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: 200), // Limit the height
               child: ReorderableListView(
                 onReorder: (oldIndex, newIndex) {
                   setState(() {
