@@ -169,7 +169,7 @@ class _AddNeedPageState extends State<AddNeedPage> {
                     });
                   },
                   decoration: InputDecoration(
-                    labelText: 'Duration',
+                    labelText: '',
                     border: OutlineInputBorder(),
                   ),
                   validator: (value) =>

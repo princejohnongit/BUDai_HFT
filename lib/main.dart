@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'needs_page.dart';
+import 'income_page.dart';
+import 'profile_page.dart';
+import 'payment_page.dart';
+import 'csp_page.dart';
 
 void main() {
   runApp(MyApp());
@@ -33,6 +37,7 @@ class _HomePageState extends State<HomePage> {
     ProfilePage(),
     ExpenditurePage(),
     PaymentPage(),
+    CSPPage()
   ];
 
   void _onItemTapped(int index) {
@@ -77,19 +82,12 @@ class _HomePageState extends State<HomePage> {
             icon: Icon(Icons.payment, size: 30),
             label: 'Payment',
           ),
-        ],
-      ),
-    );
-  }
-}
+          BottomNavigationBarItem(
+            icon: Icon(Icons.payment, size: 30),
+            label: 'Best Plan',
+          )
 
-class ProfilePage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'Profile Page',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        ],
       ),
     );
   }
@@ -101,30 +99,6 @@ class ExpenditurePage extends StatelessWidget {
     return Center(
       child: Text(
         'Expenditure Page',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-class IncomePage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'Income Page',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-class PaymentPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'Payment Page',
         style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
       ),
     );
