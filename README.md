@@ -55,7 +55,6 @@ Run the app on an emulator or connected device:
 ---
 
 ## *Screenshots*
-(Add relevant screenshots for each feature of the app here)
 
 ---
 
