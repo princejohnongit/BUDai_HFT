@@ -33,7 +33,7 @@ class _PaymentPageState extends State<PaymentPage> {
       });
     } else {
       // Create the file with default structure if it doesn't exist
-      await file.writeAsString(jsonEncode({'balance': 0.0, 'transactions': []}));
+      await file.writeAsString(jsonEncode({'balance': 10000.0, 'transactions': []}));
     }
   }
 

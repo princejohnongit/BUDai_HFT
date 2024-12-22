@@ -35,7 +35,6 @@ Future<void> initializeJsonFile() async {
       "payment": [],
       "transactions": []
     };
-
     await file.writeAsString(jsonEncode(defaultData));
   }
 }
@@ -120,5 +119,147 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
     );
+  }
+}
+
+// PaymentPage Example
+class PaymentPage extends StatefulWidget {
+  @override
+  _PaymentPageState createState() => _PaymentPageState();
+}
+
+class _PaymentPageState extends State<PaymentPage> {
+  double _balance = 0.0; // Initial balance (calculated dynamically)
+  List<Transaction> _transactions = []; // Transactions (loaded dynamically)
+
+  Future<File> get _localFile async {
+    final directory = await getApplicationDocumentsDirectory();
+    return File('${directory.path}/data.json');
+  }
+
+  Future<void> _readData() async {
+    final file = await _localFile;
+
+    if (await file.exists()) {
+      try {
+        final jsonData = await file.readAsString();
+
+        if (jsonData.isEmpty) {
+          throw FormatException("File is empty");
+        }
+
+        final data = jsonDecode(jsonData);
+        setState(() {
+          _transactions = (data['transactions'] as List)
+              .map((tx) => Transaction.fromJson(tx))
+              .toList();
+
+          _balance = _calculateBalance(); // Recalculate balance dynamically
+        });
+      } catch (e) {
+        print("Error loading JSON data: $e");
+
+        const defaultData = {
+          "transactions": [],
+        };
+        await file.writeAsString(jsonEncode(defaultData));
+
+        setState(() {
+          _balance = 0.0;
+          _transactions = [];
+        });
+      }
+    } else {
+      const defaultData = {
+        "transactions": [],
+      };
+      await file.writeAsString(jsonEncode(defaultData));
+      setState(() {
+        _balance = 0.0;
+        _transactions = [];
+      });
+    }
+  }
+
+  Future<void> _writeData() async {
+    final file = await _localFile;
+    final data = {
+      'transactions': _transactions.map((tx) => tx.toJson()).toList(),
+    };
+    await file.writeAsString(jsonEncode(data));
+  }
+
+  double _calculateBalance() {
+    double income = _transactions
+        .where((tx) => tx.type.startsWith('Income'))
+        .fold(0.0, (sum, tx) => sum + tx.amount);
+    double expenditure = _transactions
+        .where((tx) => tx.type.startsWith('Expenditure'))
+        .fold(0.0, (sum, tx) => sum + tx.amount);
+    return income - expenditure;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _readData();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Payments'),
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              'Balance: ₹${_balance.toStringAsFixed(2)}',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _transactions.length,
+              itemBuilder: (context, index) {
+                final transaction = _transactions[index];
+                return ListTile(
+                  title: Text('${transaction.type}: ₹${transaction.amount}'),
+                  subtitle: Text(transaction.date.toString()),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Transaction model
+class Transaction {
+  final double amount;
+  final String type;
+  final DateTime date;
+
+  Transaction({required this.amount, required this.type, required this.date});
+
+  factory Transaction.fromJson(Map<String, dynamic> json) {
+    return Transaction(
+      amount: json['amount'],
+      type: json['type'],
+      date: DateTime.parse(json['date']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'amount': amount,
+      'type': type,
+      'date': date.toIso8601String(),
+    };
   }
 }
